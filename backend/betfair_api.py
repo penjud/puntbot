@@ -45,8 +45,9 @@ def login(self):
             'maxResults': 100,
             'marketProjection': ['RUNNER_DESCRIPTION', 'RUNNER_METADATA', 'MARKET_START_TIME'],
         }
+    markets_url = self.base_url + 'listMarketCatalogue'
     response = requests.post(markets_url, json=payload, headers=headers)
-    
+
     if response.status_code == 200:
         return response.json()
     else:

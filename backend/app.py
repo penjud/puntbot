@@ -1,17 +1,29 @@
-import os
-import requests
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+import requests
+import os
+from flask_session import Session
+from flask import session
+from requests import Response
 
 app = Flask(__name__)
+
+# Database configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://penjud:#18Hoppy70@localhost/puntbot'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
 # Environment variables for Betfair API
 BETFAIR_API_KEY = os.getenv('BETFAIR_API_KEY')
 BETFAIR_USERNAME = os.getenv('BETFAIR_USERNAME')
 BETFAIR_PASSWORD = os.getenv('BETFAIR_PASSWORD')
 
+# Paths to your certificate and key files
+CERT_FILE_PATH = '/home/tim/VScode Projects/PuntBot/backend/certs/client-2048.crt'
+KEY_FILE_PATH = '/home/tim/VScode Projects/PuntBot/backend/certs/client-2048.key'
+
 # Betfair API URL (modify if different)
-BETFAIR_LOGIN_URL = 'https://identitysso.betfair.com.au/api/login'
+BETFAIR_LOGIN_URL = 'https://identitysso-cert.betfair.com/api/certlogin'
 
 @app.route('/betfair/login')
 def betfair_login():
@@ -19,17 +31,14 @@ def betfair_login():
         'X-Application': BETFAIR_API_KEY,
         'Content-Type': 'application/x-www-form-urlencoded'
     }
-    login_data = {
-        'username': BETFAIR_USERNAME,
-        'password': BETFAIR_PASSWORD
-    }
-    response = requests.post(BETFAIR_LOGIN_URL, data=login_data, headers=headers)
-    return response.json()
-
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://penjud:#18Hoppy70@localhost/puntbot'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
+    try:
+        json_response = Response().json()
+        session['betfair_session_token'] = json_response['sessionToken']
+        return json_response
+    except ValueError as e:
+        print(f"Status Code: {Response().status_code}")
+        print(f"Response Body: {Response().text[:500]}")  # Print first 500 characters of response to avoid flooding the terminal
+    # ...
 
 class Events(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -42,6 +51,11 @@ class Events(db.Model):
     placed_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
+# Configure server-side session
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_FILE_DIR'] = 'flask_session'  # Folder for storing session files
+Session(app)
 
 @app.route('/')
 def hello():
